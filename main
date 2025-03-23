@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tidio with Voice - Risk Assessment</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+    button { padding: 10px 20px; margin: 5px; font-size: 16px; }
+    #output { margin-top: 20px; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <h1>Risk Tolerance Assessment</h1>
+  <p>Click "Start" to begin, then "Speak" to answer with your voice.</p>
+  <button id="startBtn">Start</button>
+  <button id="voiceBtn">Speak</button>
+  <div id="output">Press "Start" to begin!</div>
+
+  <!-- Tidio Widget -->
+  <script src="https://code.tidio.co/YOUR_UNIQUE_ID.js" async></script>
+
+  <script>
+    // Web Speech API setup
+    const synth = window.speechSynthesis;
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.continuous = false;
+    recognition.lang = 'en-US';
+
+    // Speak function
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      synth.speak(utterance);
+      document.getElementById('output').innerText = text;
+    }
+
+    // Send message to Tidio
+    function sendToTidio(message) {
+      if (window.tidioChatApi) {
+        window.tidioChatApi.open();
+        window.tidioChatApi.sendMessage(message);
+      } else {
+        speak('Tidio is loading, please wait...');
+        setTimeout(() => sendToTidio(message), 1000); // Retry after 1s
+      }
+    }
+
+    // Listen for Tidio responses
+    let lastMessage = '';
+    setInterval(() => {
+      if (window.tidioChatApi) {
+        window.tidioChatApi.getChatHistory().then(history => {
+          const latest = history.messages[history.messages.length - 1]?.content;
+          if (latest && latest !== lastMessage && !latest.includes('You said')) {
+            speak(latest);
+            lastMessage = latest;
+          }
+        });
+      }
+    }, 2000); // Check every 2 seconds
+
+    // Start button
+    document.getElementById('startBtn').addEventListener('click', () => {
+      speak('Hi! I’m here to help you assess your risk tolerance and financial priorities. Let’s get started!');
+      sendToTidio('Start');
+    });
+
+    // Voice button
+    document.getElementById('voiceBtn').addEventListener('click', () => {
+      recognition.start();
+      document.getElementById('output').innerText = 'Listening...';
+    });
+
+    recognition.onresult = (event) => {
+      const userInput = event.results[0][0].transcript;
+      speak('You said: ' + userInput);
+      sendToTidio(userInput);
+    };
+
+    recognition.onerror = () => {
+      speak('Sorry, I didn’t catch that. Please try again.');
+    };
+  </script>
+</body>
+</html>
