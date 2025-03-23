@@ -6,22 +6,22 @@
   <style>
     body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
     button { padding: 10px 20px; margin: 5px; font-size: 16px; }
-    #output { margin-top: 20px; font-size: 18px; }
+    #chatOutput { margin-top: 20px; font-size: 18px; text-align: left; max-width: 600px; margin: 20px auto; }
     #textInput { padding: 10px; font-size: 16px; width: 200px; margin: 5px; }
+    .message { margin: 5px 0; }
+    .user { color: blue; }
+    .bot { color: green; }
   </style>
 </head>
 <body>
   <h1>Risk Tolerance Assessment</h1>
-  <p>Click "Start" to begin, then "Speak" to answer with your voice or type below and click "Send".</p>
+  <p>Click "Start" to begin, then "Speak" or type your answers below.</p>
   <button id="startBtn">Start</button>
   <button id="voiceBtn">Speak</button>
   <br>
   <input type="text" id="textInput" placeholder="Type your answer here">
   <button id="sendBtn">Send</button>
-  <div id="output">Press "Start" to begin!</div>
-
-  <!-- Tidio Widget with Your ID -->
-  <script src="https://code.tidio.co/lzmoqzxhszuhvfmar812usjghaxpcb3r.js" async></script>
+  <div id="chatOutput"></div>
 
   <script>
     // Web Speech API setup
@@ -30,73 +30,114 @@
     recognition.continuous = false;
     recognition.lang = 'en-US';
 
-    // Speak function
-    function speak(text) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      synth.speak(utterance);
-      document.getElementById('output').innerText = text;
+    // Chatbot state
+    let step = 0;
+    let comraScore = null;
+    let priorities = [];
+    const questions = [
+      "Have you taken the Color of Money Risk Analysis? Say or type your score (0-100) or 'No'.",
+      "Rank 'Protecting principal and avoiding losses' from 1 to 8.",
+      "Rank 'Maximizing my income' from 1 to 8.",
+      "Rank 'Minimizing income taxes' from 1 to 8.",
+      "Rank 'Receiving a better return on my assets' from 1 to 8.",
+      "Rank 'Leaving a legacy' from 1 to 8.",
+      "Rank 'Tax-advantaged income in retirement' from 1 to 8.",
+      "Rank 'Long-term care costs' from 1 to 8.",
+      "Rank 'Saving for a particular goal' from 1 to 8.",
+      "Is this correct? Say or type 'Yes' or 'No'."
+    ];
+
+    // Display message in chat
+    function addMessage(text, isUser = false) {
+      const chat = document.getElementById('chatOutput');
+      const msg = document.createElement('div');
+      msg.className = 'message ' + (isUser ? 'user' : 'bot');
+      msg.textContent = text;
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight;
+      if (!isUser) speak(text);
     }
 
-    // Send message to Tidio
-    function sendToTidio(message) {
-      if (window.tidioChatApi) {
-        window.tidioChatApi.open();
-        window.tidioChatApi.sendMessage(message);
-      } else {
-        speak('Tidio is loading, please wait...');
-        setTimeout(() => sendToTidio(message), 1000);
-      }
-    }
-
-    // Listen for Tidio responses
-    let lastMessage = '';
-    setInterval(() => {
-      if (window.tidioChatApi) {
-        window.tidioChatApi.getChatHistory().then(history => {
-          const latest = history.messages[history.messages.length - 1]?.content;
-          if (latest && latest !== lastMessage && !latest.includes('You said')) {
-            speak(latest);
-            lastMessage = latest;
+    // Process user input
+    function processInput(input) {
+      addMessage(input, true); // Show user input
+      if (step === 0) { // COMRA Score
+        if (input.toLowerCase() === 'no') {
+          comraScore = 'Not provided';
+          addMessage('No worries! Let’s move on.');
+          step++;
+          setTimeout(() => addMessage(questions[step]), 1000);
+        } else if (!isNaN(input) && input >= 0 && input <= 100) {
+          comraScore = input;
+          addMessage(`Got it, your score is ${input}. Next step.`);
+          step++;
+          setTimeout(() => addMessage(questions[step]), 1000);
+        } else {
+          addMessage('Please enter a number between 0-100 or "No".');
+        }
+      } else if (step >= 1 && step <= 8) { // Priorities
+        const rank = parseInt(input);
+        if (!isNaN(rank) && rank >= 1 && rank <= 8 && !priorities.includes(rank)) {
+          priorities.push(rank);
+          addMessage(`Ranked as ${rank}. Next question.`);
+          step++;
+          if (step <= 8) setTimeout(() => addMessage(questions[step]), 1000);
+          else {
+            const summary = `Here’s your input: COMRA: ${comraScore}, Priorities: ` +
+              questions.slice(1, 9).map((q, i) => `${i + 1}. ${q.split("'")[1]}: ${priorities[i]}`).join(', ');
+            addMessage(summary);
+            setTimeout(() => addMessage(questions[step]), 1000);
           }
-        });
+        } else {
+          addMessage('Please enter a unique number from 1-8.');
+        }
+      } else if (step === 9) { // Confirmation
+        if (input.toLowerCase() === 'yes') {
+          addMessage('Thanks! Your results are ready.');
+        } else if (input.toLowerCase() === 'no') {
+          addMessage('What needs fixing? Please restart to adjust.');
+        } else {
+          addMessage('Please say or type "Yes" or "No".');
+        }
+        step++;
       }
-    }, 2000);
+    }
 
     // Start button
     document.getElementById('startBtn').addEventListener('click', () => {
-      speak('Hi! I’m here to help you assess your risk tolerance and financial priorities. Let’s get started!');
-      sendToTidio('Start');
+      step = 0;
+      priorities = [];
+      document.getElementById('chatOutput').innerHTML = '';
+      addMessage('Hi! I’m here to help you assess your risk tolerance and financial priorities. Let’s get started!');
+      setTimeout(() => addMessage(questions[0]), 1000);
     });
 
     // Voice button
     document.getElementById('voiceBtn').addEventListener('click', () => {
       recognition.start();
-      document.getElementById('output').innerText = 'Listening...';
+      document.getElementById('chatOutput').innerHTML += '<div class="message bot">Listening...</div>';
     });
 
     recognition.onresult = (event) => {
       const userInput = event.results[0][0].transcript;
-      speak('You said: ' + userInput);
-      sendToTidio(userInput);
+      processInput(userInput);
     };
 
     recognition.onerror = () => {
-      speak('Sorry, I didn’t catch that. Please try again.');
+      addMessage('Sorry, I didn’t catch that. Please try again.');
     };
 
     // Text input and Send button
     document.getElementById('sendBtn').addEventListener('click', () => {
       const userInput = document.getElementById('textInput').value.trim();
       if (userInput) {
-        speak('You typed: ' + userInput);
-        sendToTidio(userInput);
-        document.getElementById('textInput').value = ''; // Clear the input
+        processInput(userInput);
+        document.getElementById('textInput').value = '';
       } else {
-        speak('Please type something to send.');
+        addMessage('Please type something to send.');
       }
     });
 
-    // Optional: Send on Enter key
     document.getElementById('textInput').addEventListener('keypress', (event) => {
       if (event.key === 'Enter') {
         document.getElementById('sendBtn').click();
