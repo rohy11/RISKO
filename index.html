@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Risk Tolerance Assessment</title>
+  <title>Fact and Feeling Finder</title>
   <style>
     * {
       margin: 0;
@@ -12,7 +12,7 @@
     }
     body {
       font-family: 'Inter', sans-serif;
-      background: linear-gradient(135deg, #1e3c72, #2a5298); /* Modern gradient */
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
       color: #fff;
       height: 100vh;
       display: flex;
@@ -27,10 +27,10 @@
       background: rgba(255, 255, 255, 0.95);
       border-radius: 20px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-      overflow-y: auto; /* Scrollable chat */
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 15px;
     }
     .message {
       padding: 12px 18px;
@@ -38,7 +38,7 @@
       max-width: 75%;
       font-size: 16px;
       line-height: 1.4;
-      animation: fadeIn 0.3s ease-in; /* Subtle animation */
+      animation: fadeIn 0.3s ease-in;
     }
     .user {
       background: #4a90e2;
@@ -121,25 +121,66 @@
 
     let model;
     let step = 0;
-    let comraScore = null;
-    let priorities = [];
+    const clientData = {
+      client1: { overview: {}, risk: {}, assets: [], liabilities: [], socialSecurity: {}, otherIncome: [], retirement: {}, insurance: {}, estate: {} },
+      // Add client2 later if needed
+    };
     const questions = [
-      "Hey there! Let’s dive into your risk tolerance. Have you taken the Color of Money Risk Analysis? Give me your score (0-100) or say 'No'.",
-      "Awesome, now let’s rank your priorities. For 'Protecting principal and avoiding losses,' pick a rank from 1 to 8.",
-      "Next up: 'Maximizing my income.' Rank it 1-8.",
-      "Moving along: 'Minimizing income taxes.' What’s your rank, 1-8?",
+      // Overview (Page 2)
+      "Hi! Let’s get started with the Fact and Feeling Finder. What’s your first name?",
+      "Great, what’s your last name?",
+      "Do you have a preferred name? (Say 'No' if not)",
+      "What’s your date of birth? (e.g., MM/DD/YYYY)",
+      "What’s your email address? (Say 'Skip' if you’d rather not share)",
+      "What’s your phone number? (e.g., 123-456-7890, say 'Skip' if preferred)",
+      "What’s your gender? (Male, Female, Other, Prefer not to answer)",
+      "What’s your relationship status? (Married, Single, Domestic partnership)",
+      "Are you already retired? (Yes or No)",
+      "If retired, at what age did you retire? If not, what age do you plan to retire? (Say 'Skip' if unsure)",
+      "What brings you in today regarding your financial life?",
+      // Risk and Financial Priorities (Page 3)
+      "Now, let’s talk risk. Have you taken the Color of Money Risk Analysis? If yes, what’s your score (0-100)? If not, say 'No'.",
+      "Time to rank your financial priorities (1-8, 1 being most important). For 'Protecting principal and avoiding losses,' what’s your rank?",
+      "Next: 'Maximizing my income.' Rank it 1-8.",
+      "For 'Minimizing income taxes,' what’s your rank?",
       "'Receiving a better return on my assets.' Rank it 1-8.",
-      "Halfway there! 'Leaving a legacy'—rank it 1-8.",
+      "'Leaving a legacy.' Rank it 1-8.",
       "'Tax-advantaged income in retirement.' Rank it 1-8.",
-      "Almost done: 'Long-term care costs.' Rank 1-8.",
-      "Last one: 'Saving for a particular goal.' Rank it 1-8.",
-      "Here’s your summary. Does this look right? Say 'Yes' or 'No'."
+      "'Long-term care costs.' Rank it 1-8.",
+      "'Saving for a particular goal.' Rank it 1-8.",
+      // Assets and Liabilities (Page 4-5, simplified)
+      "Let’s list an asset. What’s the account name? (Say 'Skip' to move on)",
+      "Who owns it? (You or someone else)",
+      "What type is it? (e.g., Checking, Savings, Investment, say 'Skip' if unsure)",
+      "What’s its value? (e.g., $5000, say 'Skip' if unsure)",
+      "Any liabilities? What’s one you owe? (e.g., Mortgage, say 'Skip' to move on)",
+      "What’s its balance owed? (e.g., $10000, say 'Skip' if unsure)",
+      // Social Security (Page 6-7)
+      "Are you currently receiving Social Security benefits? (Yes or No)",
+      "If yes, what’s your monthly benefit? (e.g., $2000, say 'Skip' if not)",
+      "If no, what’s your anticipated age to file for benefits? (Say 'Skip' if unsure)",
+      // Other Income Sources (Page 8)
+      "Any other income sources? Name one (e.g., Pension, say 'Skip' to move on)",
+      "What’s its annual income? (e.g., $15000, say 'Skip' if unsure)",
+      // Retirement Income Needs (Page 9)
+      "What are your monthly expenses? (e.g., $3000)",
+      "What’s your annual retirement income goal? (e.g., $50000, say 'Gross' or 'Net')",
+      // Insurance (Page 10)
+      "Do you have life insurance? (Yes or No)",
+      "If yes, what’s the death benefit? (e.g., $100000, say 'Skip' if unsure)",
+      "Do you have long-term care protection? (Yes or No)",
+      // Estate Planning/Miscellaneous (Page 11)
+      "Do you have an estate plan? (Yes or No)",
+      "Do you have a will? (Yes or No)",
+      "When you have a financial question, who do you ask? (e.g., Family, Financial Professional)",
+      // Summary
+      "Here’s everything I’ve got. Ready to review? (Yes or No)"
     ];
 
-    // Load NLP model and start automatically
+    // Load NLP model and start
     async function loadModel() {
       model = await use.load();
-      addMessage('Hey! I’m your AI assistant, ready to guide you through your risk assessment.');
+      addMessage('Welcome to the Fact and Feeling Finder! I’ll guide you through some questions.');
       setTimeout(() => addMessage(questions[0]), 200);
     }
     loadModel();
@@ -150,8 +191,8 @@
       const msg = document.createElement('div');
       msg.className = 'message ' + (isUser ? 'user' : 'bot');
       msg.textContent = text;
-      chat.appendChild(msg); // Adds to bottom
-      chat.scrollTop = chat.scrollHeight; // Auto-scroll to latest
+      chat.appendChild(msg);
+      chat.scrollTop = chat.scrollHeight; // Scroll to bottom
     }
 
     // Speak function
@@ -164,100 +205,41 @@
     async function processInput(input) {
       addMessage(input, true);
       if (!model) {
-        addMessage('Just a sec, I’m still loading!');
+        addMessage('Still loading, hang tight!');
         return;
       }
 
-      const embeddings = await model.embed([input.toLowerCase(), 'yes', 'no', '0-100']);
+      const embeddings = await model.embed([input.toLowerCase(), 'yes', 'no', 'skip']);
       const inputEmb = embeddings.slice([0, 0], [1, -1]);
       const yesEmb = embeddings.slice([1, 0], [1, -1]);
       const noEmb = embeddings.slice([2, 0], [1, -1]);
-      const numEmb = embeddings.slice([3, 0], [1, -1]);
+      const skipEmb = embeddings.slice([3, 0], [1, -1]);
 
       const yesSim = tf.matMul(inputEmb, yesEmb, false, true).dataSync()[0];
       const noSim = tf.matMul(inputEmb, noEmb, false, true).dataSync()[0];
-      const numSim = tf.matMul(inputEmb, numEmb, false, true).dataSync()[0];
+      const skipSim = tf.matMul(inputEmb, skipEmb, false, true).dataSync()[0];
 
-      if (step === 0) { // COMRA Score
-        if (noSim > 0.9 || input.toLowerCase().includes('no')) {
-          comraScore = 'Not provided';
-          addMessage('Cool, let’s skip that and jump to priorities.');
-          step++;
-          setTimeout(() => addMessage(questions[step]), 200);
-        } else if (numSim > 0.8 || (!isNaN(input) && input >= 0 && input <= 100)) {
-          const score = parseInt(input);
-          if (score >= 0 && score <= 100) {
-            comraScore = score;
-            addMessage(`Got it, your score’s ${score}. Let’s move to priorities!`);
-            step++;
-            setTimeout(() => addMessage(questions[step]), 200);
-          } else {
-            addMessage('I need a number 0-100 or "No". What’s your answer?');
-          }
-        } else {
-          addMessage('Please give me a score 0-100 or "No".');
-        }
-      } else if (step >= 1 && step <= 8) { // Priorities
-        const rank = parseInt(input);
-        if (!isNaN(rank) && rank >= 1 && rank <= 8 && !priorities.includes(rank)) {
-          priorities.push(rank);
-          addMessage(`Locked in ${rank}. Onward!`);
-          step++;
-          if (step <= 8) {
-            setTimeout(() => addMessage(questions[step]), 200);
-          } else {
-            const summary = `Here’s your rundown: COMRA: ${comraScore}, Priorities: ` +
-              questions.slice(1, 9).map((q, i) => `${i + 1}. ${q.split("'")[1]}: ${priorities[i]}`).join(', ');
-            addMessage(summary);
-            setTimeout(() => addMessage(questions[step]), 200);
-          }
-        } else {
-          addMessage('Need a unique number 1-8. What’s your rank?');
-        }
-      } else if (step === 9) { // Confirmation
-        if (yesSim > 0.9 || input.toLowerCase().includes('yes')) {
-          addMessage('Awesome! We’re all set—thanks for the chat!');
-          step++;
-        } else if (noSim > 0.9 || input.toLowerCase().includes('no')) {
-          addMessage('No worries, refresh to restart and tweak it.');
-          step++;
-        } else {
-          addMessage('Just need a "Yes" or "No". What do you say?');
-        }
+      const nextStep = () => {
+        step++;
+        if (step < questions.length) setTimeout(() => addMessage(questions[step]), 200);
+      };
+
+      // Overview
+      if (step === 0) clientData.client1.overview.firstName = input;
+      else if (step === 1) clientData.client1.overview.lastName = input;
+      else if (step === 2) clientData.client1.overview.preferredName = (noSim > 0.9 || input.toLowerCase().includes('no')) ? '' : input;
+      else if (step === 3) clientData.client1.overview.dob = input;
+      else if (step === 4) clientData.client1.overview.email = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 5) clientData.client1.overview.phone = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 6) clientData.client1.overview.gender = input;
+      else if (step === 7) clientData.client1.overview.relationshipStatus = input;
+      else if (step === 8) clientData.client1.overview.retired = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      else if (step === 9) clientData.client1.overview.retirementAge = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 10) clientData.client1.overview.reason = input;
+      // Risk and Financial Priorities
+      else if (step === 11) {
+        if (noSim > 0.9 || input.toLowerCase().includes('no')) clientData.client1.risk.comra = 'Not provided';
+        else if (!isNaN(input) && input >= 0 && input <= 100) clientData.client1.risk.comra = parseInt(input);
+        else { addMessage('Please give a score 0-100 or "No".'); return; }
       }
-    }
-
-    // Voice button
-    document.getElementById('voiceBtn').addEventListener('click', () => {
-      recognition.start();
-      addMessage('I’m listening—go ahead!');
-    });
-
-    recognition.onresult = (event) => {
-      const userInput = event.results[0][0].transcript;
-      processInput(userInput);
-    };
-
-    recognition.onerror = () => {
-      addMessage('Oops, didn’t catch that. Try again?');
-    };
-
-    // Text input and Send button
-    document.getElementById('sendBtn').addEventListener('click', () => {
-      const userInput = document.getElementById('textInput').value.trim();
-      if (userInput) {
-        processInput(userInput);
-        document.getElementById('textInput').value = '';
-      } else {
-        addMessage('Type something to keep us rolling!');
-      }
-    });
-
-    document.getElementById('textInput').addEventListener('keypress', (event) => {
-      if (event.key === 'Enter') {
-        document.getElementById('sendBtn').click();
-      }
-    });
-  </script>
-</body>
-</html>
+      else
