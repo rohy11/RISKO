@@ -7,30 +7,37 @@
     body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
     button { padding: 10px 20px; margin: 5px; font-size: 16px; }
     #output { margin-top: 20px; font-size: 18px; }
+    #textInput { padding: 10px; font-size: 16px; width: 200px; margin: 5px; }
   </style>
 </head>
 <body>
   <h1>Risk Tolerance Assessment</h1>
-  <p>Click "Start" to begin, then "Speak" to answer with your voice.</p>
+  <p>Click "Start" to begin, then "Speak" to answer with your voice or type below and click "Send".</p>
   <button id="startBtn">Start</button>
   <button id="voiceBtn">Speak</button>
+  <br>
+  <input type="text" id="textInput" placeholder="Type your answer here">
+  <button id="sendBtn">Send</button>
   <div id="output">Press "Start" to begin!</div>
 
-  <!-- Tidio Widget - Replace YOUR_TIDIO_ID with your actual Tidio ID -->
+  <!-- Tidio Widget with Your ID -->
   <script src="https://code.tidio.co/lzmoqzxhszuhvfmar812usjghaxpcb3r.js" async></script>
 
   <script>
+    // Web Speech API setup
     const synth = window.speechSynthesis;
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.continuous = false;
     recognition.lang = 'en-US';
 
+    // Speak function
     function speak(text) {
       const utterance = new SpeechSynthesisUtterance(text);
       synth.speak(utterance);
       document.getElementById('output').innerText = text;
     }
 
+    // Send message to Tidio
     function sendToTidio(message) {
       if (window.tidioChatApi) {
         window.tidioChatApi.open();
@@ -41,6 +48,7 @@
       }
     }
 
+    // Listen for Tidio responses
     let lastMessage = '';
     setInterval(() => {
       if (window.tidioChatApi) {
@@ -54,11 +62,13 @@
       }
     }, 2000);
 
+    // Start button
     document.getElementById('startBtn').addEventListener('click', () => {
       speak('Hi! I’m here to help you assess your risk tolerance and financial priorities. Let’s get started!');
       sendToTidio('Start');
     });
 
+    // Voice button
     document.getElementById('voiceBtn').addEventListener('click', () => {
       recognition.start();
       document.getElementById('output').innerText = 'Listening...';
@@ -73,6 +83,25 @@
     recognition.onerror = () => {
       speak('Sorry, I didn’t catch that. Please try again.');
     };
+
+    // Text input and Send button
+    document.getElementById('sendBtn').addEventListener('click', () => {
+      const userInput = document.getElementById('textInput').value.trim();
+      if (userInput) {
+        speak('You typed: ' + userInput);
+        sendToTidio(userInput);
+        document.getElementById('textInput').value = ''; // Clear the input
+      } else {
+        speak('Please type something to send.');
+      }
+    });
+
+    // Optional: Send on Enter key
+    document.getElementById('textInput').addEventListener('keypress', (event) => {
+      if (event.key === 'Enter') {
+        document.getElementById('sendBtn').click();
+      }
+    });
   </script>
 </body>
 </html>
