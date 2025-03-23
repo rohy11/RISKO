@@ -52,7 +52,7 @@
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
       padding: 15px;
       display: flex;
-      flex-direction: column-reverse; /* New messages at top */
+      flex-direction: column-reverse;
       overflow-y: auto;
     }
     .message {
@@ -78,8 +78,7 @@
 </head>
 <body>
   <h1>Risk Tolerance Assessment</h1>
-  <p>Click "Start" and I’ll guide you through your assessment with voice or text.</p>
-  <button id="startBtn">Start</button>
+  <p>Use "Speak" or type your answers below—I’ll guide you through!</p>
   <button id="voiceBtn">Speak</button>
   <br>
   <input type="text" id="textInput" placeholder="Type your answer here">
@@ -109,10 +108,11 @@
       "Here’s what I’ve got. Is this correct? Say 'Yes' or 'No'."
     ];
 
-    // Load NLP model
+    // Load NLP model and start automatically
     async function loadModel() {
       model = await use.load();
-      addMessage('Hey, I’m ready! Hit "Start" to kick things off.');
+      addMessage('Hey, I’m ready! Let’s get started with your risk assessment.');
+      setTimeout(() => addMessage(questions[0]), 200);
     }
     loadModel();
 
@@ -122,8 +122,8 @@
       const msg = document.createElement('div');
       msg.className = 'message ' + (isUser ? 'user' : 'bot');
       msg.textContent = text;
-      chat.insertBefore(msg, chat.firstChild); // Insert at top
-      chat.scrollTop = 0; // Scroll to top
+      chat.insertBefore(msg, chat.firstChild);
+      chat.scrollTop = 0;
       if (!isUser) speak(text);
     }
 
@@ -156,7 +156,7 @@
           comraScore = 'Not provided';
           addMessage('No worries, let’s jump to priorities.');
           step++;
-          setTimeout(() => addMessage(questions[step]), 200); // Faster
+          setTimeout(() => addMessage(questions[step]), 200);
         } else if (numSim > 0.8 || (!isNaN(input) && input >= 0 && input <= 100)) {
           const score = parseInt(input);
           if (score >= 0 && score <= 100) {
@@ -192,23 +192,13 @@
           addMessage('Sweet! All done—thanks for chatting!');
           step++;
         } else if (noSim > 0.9 || input.toLowerCase().includes('no')) {
-          addMessage('No prob, restart with "Start" to tweak it.');
+          addMessage('No prob, refresh the page to restart and tweak it.');
           step++;
         } else {
           addMessage('"Yes" or "No" to wrap up—your call!');
         }
       }
     }
-
-    // Start button
-    document.getElementById('startBtn').addEventListener('click', () => {
-      step = 0;
-      priorities = [];
-      comraScore = null;
-      document.getElementById('chatOutput').innerHTML = '';
-      addMessage('Hey there! I’m your AI buddy for this risk assessment. Let’s roll!');
-      setTimeout(() => addMessage(questions[0]), 200);
-    });
 
     // Voice button
     document.getElementById('voiceBtn').addEventListener('click', () => {
