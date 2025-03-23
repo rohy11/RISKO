@@ -12,10 +12,12 @@
     .user { color: blue; }
     .bot { color: green; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
 </head>
 <body>
   <h1>Risk Tolerance Assessment</h1>
-  <p>Click "Start" to begin, then "Speak" or type your answers below.</p>
+  <p>Click "Start" and I’ll guide you through your risk tolerance assessment with voice or text.</p>
   <button id="startBtn">Start</button>
   <button id="voiceBtn">Speak</button>
   <br>
@@ -24,30 +26,36 @@
   <div id="chatOutput"></div>
 
   <script>
-    // Web Speech API setup
     const synth = window.speechSynthesis;
     const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
     recognition.continuous = false;
     recognition.lang = 'en-US';
 
-    // Chatbot state
+    let model;
     let step = 0;
     let comraScore = null;
     let priorities = [];
     const questions = [
-      "Have you taken the Color of Money Risk Analysis? Say or type your score (0-100) or 'No'.",
-      "Rank 'Protecting principal and avoiding losses' from 1 to 8.",
-      "Rank 'Maximizing my income' from 1 to 8.",
-      "Rank 'Minimizing income taxes' from 1 to 8.",
-      "Rank 'Receiving a better return on my assets' from 1 to 8.",
-      "Rank 'Leaving a legacy' from 1 to 8.",
-      "Rank 'Tax-advantaged income in retirement' from 1 to 8.",
-      "Rank 'Long-term care costs' from 1 to 8.",
-      "Rank 'Saving for a particular goal' from 1 to 8.",
-      "Is this correct? Say or type 'Yes' or 'No'."
+      "Let’s start! Have you taken the Color of Money Risk Analysis? Please say or type your score (0-100) or 'No'.",
+      "Great, now let’s rank your priorities. For 'Protecting principal and avoiding losses,' give me a rank from 1 to 8.",
+      "Next up: 'Maximizing my income.' Rank it from 1 to 8.",
+      "Moving on: 'Minimizing income taxes.' What’s your rank, 1 to 8?",
+      "For 'Receiving a better return on my assets,' rank it from 1 to 8.",
+      "Halfway there! 'Leaving a legacy'—rank it from 1 to 8.",
+      "Now: 'Tax-advantaged income in retirement.' Rank it 1 to 8.",
+      "Almost done: 'Long-term care costs.' Give me a rank from 1 to 8.",
+      "Last one: 'Saving for a particular goal.' Rank it from 1 to 8.",
+      "Here’s what I’ve got so far. Is this correct? Say or type 'Yes' or 'No'."
     ];
 
-    // Display message in chat
+    // Load NLP model
+    async function loadModel() {
+      model = await use.load();
+      addMessage('I’m ready to guide you! Click "Start" to begin your assessment.');
+    }
+    loadModel();
+
+    // Display message
     function addMessage(text, isUser = false) {
       const chat = document.getElementById('chatOutput');
       const msg = document.createElement('div');
@@ -58,48 +66,76 @@
       if (!isUser) speak(text);
     }
 
-    // Process user input
-    function processInput(input) {
-      addMessage(input, true); // Show user input
+    // Speak function
+    function speak(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      synth.speak(utterance);
+    }
+
+    // Process input with NLP
+    async function processInput(input) {
+      addMessage(input, true);
+      if (!model) {
+        addMessage('I’m still loading. Please wait a moment.');
+        return;
+      }
+
+      const embeddings = await model.embed([input.toLowerCase(), 'yes', 'no', '0-100']);
+      const inputEmb = embeddings.slice([0, 0], [1, -1]);
+      const yesEmb = embeddings.slice([1, 0], [1, -1]);
+      const noEmb = embeddings.slice([2, 0], [1, -1]);
+      const numEmb = embeddings.slice([3, 0], [1, -1]);
+
+      const yesSim = tf.matMul(inputEmb, yesEmb, false, true).dataSync()[0];
+      const noSim = tf.matMul(inputEmb, noEmb, false, true).dataSync()[0];
+      const numSim = tf.matMul(inputEmb, numEmb, false, true).dataSync()[0];
+
       if (step === 0) { // COMRA Score
-        if (input.toLowerCase() === 'no') {
+        if (noSim > 0.9 || input.toLowerCase().includes('no')) {
           comraScore = 'Not provided';
-          addMessage('No worries! Let’s move on.');
+          addMessage('No problem, we’ll skip that. Let’s move to your priorities.');
           step++;
           setTimeout(() => addMessage(questions[step]), 1000);
-        } else if (!isNaN(input) && input >= 0 && input <= 100) {
-          comraScore = input;
-          addMessage(`Got it, your score is ${input}. Next step.`);
-          step++;
-          setTimeout(() => addMessage(questions[step]), 1000);
+        } else if (numSim > 0.8 || (!isNaN(input) && input >= 0 && input <= 100)) {
+          const score = parseInt(input);
+          if (score >= 0 && score <= 100) {
+            comraScore = score;
+            addMessage(`Thanks, I’ve noted your score as ${score}. Now, let’s rank your priorities.`);
+            step++;
+            setTimeout(() => addMessage(questions[step]), 1000);
+          } else {
+            addMessage('I need a number between 0 and 100 or "No". Could you try again?');
+          }
         } else {
-          addMessage('Please enter a number between 0-100 or "No".');
+          addMessage('I need a number between 0 and 100 or "No". What’s your answer?');
         }
       } else if (step >= 1 && step <= 8) { // Priorities
         const rank = parseInt(input);
         if (!isNaN(rank) && rank >= 1 && rank <= 8 && !priorities.includes(rank)) {
           priorities.push(rank);
-          addMessage(`Ranked as ${rank}. Next question.`);
+          addMessage(`Got it, ranked as ${rank}. Let’s keep going!`);
           step++;
-          if (step <= 8) setTimeout(() => addMessage(questions[step]), 1000);
-          else {
-            const summary = `Here’s your input: COMRA: ${comraScore}, Priorities: ` +
+          if (step <= 8) {
+            setTimeout(() => addMessage(questions[step]), 1000);
+          } else {
+            const summary = `Here’s what you’ve told me: COMRA: ${comraScore}, Priorities: ` +
               questions.slice(1, 9).map((q, i) => `${i + 1}. ${q.split("'")[1]}: ${priorities[i]}`).join(', ');
             addMessage(summary);
             setTimeout(() => addMessage(questions[step]), 1000);
           }
         } else {
-          addMessage('Please enter a unique number from 1-8.');
+          addMessage('Please give me a unique number from 1 to 8. What’s your rank?');
         }
       } else if (step === 9) { // Confirmation
-        if (input.toLowerCase() === 'yes') {
-          addMessage('Thanks! Your results are ready.');
-        } else if (input.toLowerCase() === 'no') {
-          addMessage('What needs fixing? Please restart to adjust.');
+        if (yesSim > 0.9 || input.toLowerCase().includes('yes')) {
+          addMessage('Perfect! Your assessment is complete. Thanks for working with me!');
+          step++;
+        } else if (noSim > 0.9 || input.toLowerCase().includes('no')) {
+          addMessage('Okay, let’s fix it. Restart by clicking "Start" if you’d like to adjust anything.');
+          step++;
         } else {
-          addMessage('Please say or type "Yes" or "No".');
+          addMessage('I need a "Yes" or "No" to confirm. What do you think?');
         }
-        step++;
       }
     }
 
@@ -107,15 +143,16 @@
     document.getElementById('startBtn').addEventListener('click', () => {
       step = 0;
       priorities = [];
+      comraScore = null;
       document.getElementById('chatOutput').innerHTML = '';
-      addMessage('Hi! I’m here to help you assess your risk tolerance and financial priorities. Let’s get started!');
+      addMessage('Hi! I’m your AI assistant here to guide you through your risk tolerance assessment. Ready?');
       setTimeout(() => addMessage(questions[0]), 1000);
     });
 
     // Voice button
     document.getElementById('voiceBtn').addEventListener('click', () => {
       recognition.start();
-      document.getElementById('chatOutput').innerHTML += '<div class="message bot">Listening...</div>';
+      addMessage('I’m listening—go ahead!');
     });
 
     recognition.onresult = (event) => {
@@ -124,7 +161,7 @@
     };
 
     recognition.onerror = () => {
-      addMessage('Sorry, I didn’t catch that. Please try again.');
+      addMessage('Oops, I didn’t catch that. Could you try again?');
     };
 
     // Text input and Send button
@@ -134,7 +171,7 @@
         processInput(userInput);
         document.getElementById('textInput').value = '';
       } else {
-        addMessage('Please type something to send.');
+        addMessage('Please type something so I can assist you!');
       }
     });
 
