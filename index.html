@@ -190,7 +190,7 @@
     async function loadModel() {
       model = await use.load();
       addMessage('Welcome to the Fact and Feeling Finder! I’ll guide you through some questions.');
-      setTimeout(() => addMessage(questions[0]), 200);
+      setTimeout(() => addMessage(questions[0]), 100); // Faster: 100ms
     }
     loadModel();
 
@@ -230,7 +230,7 @@
 
       const nextStep = () => {
         step++;
-        if (step < questions.length) setTimeout(() => addMessage(questions[step]), 200);
+        if (step < questions.length) setTimeout(() => addMessage(questions[step]), 100); // Faster: 100ms
       };
 
       // Overview
