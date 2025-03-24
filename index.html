@@ -122,8 +122,17 @@
     let model;
     let step = 0;
     const clientData = {
-      client1: { overview: {}, risk: {}, assets: [], liabilities: [], socialSecurity: {}, otherIncome: [], retirement: {}, insurance: {}, estate: {} },
-      // Add client2 later if needed
+      client1: { 
+        overview: {}, 
+        risk: { priorities: [] }, 
+        assets: [], 
+        liabilities: [], 
+        socialSecurity: {}, 
+        otherIncome: [], 
+        retirement: {}, 
+        insurance: {}, 
+        estate: {} 
+      }
     };
     const questions = [
       // Overview (Page 2)
@@ -192,7 +201,7 @@
       msg.className = 'message ' + (isUser ? 'user' : 'bot');
       msg.textContent = text;
       chat.appendChild(msg);
-      chat.scrollTop = chat.scrollHeight; // Scroll to bottom
+      chat.scrollTop = chat.scrollHeight;
     }
 
     // Speak function
@@ -242,4 +251,107 @@
         else if (!isNaN(input) && input >= 0 && input <= 100) clientData.client1.risk.comra = parseInt(input);
         else { addMessage('Please give a score 0-100 or "No".'); return; }
       }
-      else
+      else if (step >= 12 && step <= 19) {
+        const rank = parseInt(input);
+        if (!isNaN(rank) && rank >= 1 && rank <= 8 && !clientData.client1.risk.priorities.includes(rank)) {
+          clientData.client1.risk.priorities.push(rank);
+        } else { addMessage('Need a unique number 1-8. Try again!'); return; }
+      }
+      // Assets and Liabilities
+      else if (step === 20) {
+        if (skipSim > 0.9 || input.toLowerCase().includes('skip')) step = 24; // Jump to liabilities
+        else clientData.client1.assets.push({ name: input });
+      }
+      else if (step === 21) clientData.client1.assets[0].owner = input;
+      else if (step === 22) clientData.client1.assets[0].type = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 23) clientData.client1.assets[0].value = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 24) {
+        if (skipSim > 0.9 || input.toLowerCase().includes('skip')) step = 26; // Jump to Social Security
+        else clientData.client1.liabilities.push({ name: input });
+      }
+      else if (step === 25) clientData.client1.liabilities[0].balance = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      // Social Security
+      else if (step === 26) clientData.client1.socialSecurity.receiving = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      else if (step === 27) clientData.client1.socialSecurity.benefit = (clientData.client1.socialSecurity.receiving === 'Yes' && !(skipSim > 0.9 || input.toLowerCase().includes('skip'))) ? input : '';
+      else if (step === 28) clientData.client1.socialSecurity.filingAge = (clientData.client1.socialSecurity.receiving === 'No' && !(skipSim > 0.9 || input.toLowerCase().includes('skip'))) ? input : '';
+      // Other Income Sources
+      else if (step === 29) {
+        if (skipSim > 0.9 || input.toLowerCase().includes('skip')) step = 31; // Jump to Retirement
+        else clientData.client1.otherIncome.push({ name: input });
+      }
+      else if (step === 30) clientData.client1.otherIncome[0].amount = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      // Retirement Income Needs
+      else if (step === 31) clientData.client1.retirement.expenses = input;
+      else if (step === 32) clientData.client1.retirement.incomeGoal = input;
+      // Insurance
+      else if (step === 33) clientData.client1.insurance.life = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      else if (step === 34) clientData.client1.insurance.lifeBenefit = (clientData.client1.insurance.life === 'Yes' && !(skipSim > 0.9 || input.toLowerCase().includes('skip'))) ? input : '';
+      else if (step === 35) clientData.client1.insurance.ltc = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      // Estate Planning/Miscellaneous
+      else if (step === 36) clientData.client1.estate.plan = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      else if (step === 37) clientData.client1.estate.will = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      else if (step === 38) clientData.client1.estate.questionSource = input;
+      // Summary
+      else if (step === 39) {
+        if (yesSim > 0.9 || input.toLowerCase().includes('yes')) {
+          const summary = `Here’s your Fact and Feeling Finder summary:\n` +
+            `Overview: ${JSON.stringify(clientData.client1.overview, null, 2)}\n` +
+            `Risk: COMRA - ${clientData.client1.risk.comra}, Priorities - ${clientData.client1.risk.priorities.join(', ')}\n` +
+            `Assets: ${JSON.stringify(clientData.client1.assets, null, 2)}\n` +
+            `Liabilities: ${JSON.stringify(clientData.client1.liabilities, null, 2)}\n` +
+            `Social Security: ${JSON.stringify(clientData.client1.socialSecurity, null, 2)}\n` +
+            `Other Income: ${JSON.stringify(clientData.client1.otherIncome, null, 2)}\n` +
+            `Retirement Needs: ${JSON.stringify(clientData.client1.retirement, null, 2)}\n` +
+            `Insurance: ${JSON.stringify(clientData.client1.insurance, null, 2)}\n` +
+            `Estate: ${JSON.stringify(clientData.client1.estate, null, 2)}`;
+          addMessage(summary);
+          addMessage('All done! Thanks for completing this with me!');
+          step++;
+          return;
+        } else if (noSim > 0.9 || input.toLowerCase().includes('no')) {
+          addMessage('No problem, refresh to start over if you’d like.');
+          step++;
+          return;
+        } else {
+          addMessage('Please say "Yes" or "No" to review.');
+          return;
+        }
+      }
+
+      nextStep();
+    }
+
+    // Voice button
+    document.getElementById('voiceBtn').addEventListener('click', () => {
+      recognition.start();
+      addMessage('I’m listening—go ahead!');
+    });
+
+    recognition.onresult = (event) => {
+      const userInput = event.results[0][0].transcript;
+      processInput(userInput);
+    };
+
+    recognition.onerror = () => {
+      addMessage('Oops, didn’t catch that. Try again?');
+    };
+
+    // Text input and Send button
+    document.getElementById('sendBtn').addEventListener('click', () => {
+      const userInput = document.getElementById('textInput').value.trim();
+      if (userInput) {
+        processInput(userInput);
+        document.getElementById('textInput').value = '';
+      } else {
+        addMessage('Type something to keep us going!');
+      }
+    });
+
+    document.getElementById('textInput').addEventListener('keypress', (event) => {
+      if (event.key === 'Enter') {
+        document.getElementById('sendBtn').click();
+      }
+    });
+  </script>
+</body>
+</html>
