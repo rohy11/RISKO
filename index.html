@@ -102,8 +102,6 @@
     }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
 </head>
 <body>
   <div id="chatContainer"></div>
@@ -119,7 +117,6 @@
     recognition.continuous = false;
     recognition.lang = 'en-US';
 
-    let model;
     let step = 0;
     const clientData = {
       client1: { 
@@ -135,7 +132,6 @@
       }
     };
     const questions = [
-      // Overview (Page 2)
       "Hi! Let’s get started with the Fact and Feeling Finder. What’s your first name?",
       "Great, what’s your last name?",
       "Do you have a preferred name? (Say 'No' if not)",
@@ -147,7 +143,6 @@
       "Are you already retired? (Yes or No)",
       "If retired, at what age did you retire? If not, what age do you plan to retire? (Say 'Skip' if unsure)",
       "What brings you in today regarding your financial life?",
-      // Risk and Financial Priorities (Page 3)
       "Now, let’s talk risk. Have you taken the Color of Money Risk Analysis? If yes, what’s your score (0-100)? If not, say 'No'.",
       "Time to rank your financial priorities (1-8, 1 being most important). For 'Protecting principal and avoiding losses,' what’s your rank?",
       "Next: 'Maximizing my income.' Rank it 1-8.",
@@ -157,42 +152,31 @@
       "'Tax-advantaged income in retirement.' Rank it 1-8.",
       "'Long-term care costs.' Rank it 1-8.",
       "'Saving for a particular goal.' Rank it 1-8.",
-      // Assets and Liabilities (Page 4-5, simplified)
       "Let’s list an asset. What’s the account name? (Say 'Skip' to move on)",
       "Who owns it? (You or someone else)",
       "What type is it? (e.g., Checking, Savings, Investment, say 'Skip' if unsure)",
       "What’s its value? (e.g., $5000, say 'Skip' if unsure)",
       "Any liabilities? What’s one you owe? (e.g., Mortgage, say 'Skip' to move on)",
       "What’s its balance owed? (e.g., $10000, say 'Skip' if unsure)",
-      // Social Security (Page 6-7)
       "Are you currently receiving Social Security benefits? (Yes or No)",
       "If yes, what’s your monthly benefit? (e.g., $2000, say 'Skip' if not)",
       "If no, what’s your anticipated age to file for benefits? (Say 'Skip' if unsure)",
-      // Other Income Sources (Page 8)
       "Any other income sources? Name one (e.g., Pension, say 'Skip' to move on)",
       "What’s its annual income? (e.g., $15000, say 'Skip' if unsure)",
-      // Retirement Income Needs (Page 9)
       "What are your monthly expenses? (e.g., $3000)",
       "What’s your annual retirement income goal? (e.g., $50000, say 'Gross' or 'Net')",
-      // Insurance (Page 10)
       "Do you have life insurance? (Yes or No)",
       "If yes, what’s the death benefit? (e.g., $100000, say 'Skip' if unsure)",
       "Do you have long-term care protection? (Yes or No)",
-      // Estate Planning/Miscellaneous (Page 11)
       "Do you have an estate plan? (Yes or No)",
       "Do you have a will? (Yes or No)",
       "When you have a financial question, who do you ask? (e.g., Family, Financial Professional)",
-      // Summary
       "Here’s everything I’ve got. Ready to review? (Yes or No)"
     ];
 
-    // Load NLP model and start
-    async function loadModel() {
-      model = await use.load();
-      addMessage('Welcome to the Fact and Feeling Finder! I’ll guide you through some questions.');
-      setTimeout(() => addMessage(questions[0]), 100); // Faster: 100ms
-    }
-    loadModel();
+    // Start immediately
+    addMessage('Welcome to the Fact and Feeling Finder! I’ll guide you through some questions.');
+    setTimeout(() => addMessage(questions[0]), 50);
 
     // Display message
     function addMessage(text, isUser = false) {
@@ -204,116 +188,133 @@
       chat.scrollTop = chat.scrollHeight;
     }
 
-    // Speak function
-    function speak(text) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      synth.speak(utterance);
+    // Smart input parser
+    function parseInput(input) {
+      const lowerInput = input.toLowerCase().trim();
+      const yesWords = ['yes', 'yeah', 'yep', 'sure', 'ok', 'okay'];
+      const noWords = ['no', 'nope', 'nah', 'not really'];
+      const skipWords = ['skip', 'pass', 'don’t know', 'idk', 'next'];
+      
+      const isYes = yesWords.some(word => lowerInput.includes(word));
+      const isNo = noWords.some(word => lowerInput.includes(word));
+      const isSkip = skipWords.some(word => lowerInput.includes(word));
+      
+      return { input, isYes, isNo, isSkip };
     }
 
-    // Process input with NLP
-    async function processInput(input) {
+    // Process input
+    function processInput(input) {
       addMessage(input, true);
-      if (!model) {
-        addMessage('Still loading, hang tight!');
-        return;
-      }
-
-      const embeddings = await model.embed([input.toLowerCase(), 'yes', 'no', 'skip']);
-      const inputEmb = embeddings.slice([0, 0], [1, -1]);
-      const yesEmb = embeddings.slice([1, 0], [1, -1]);
-      const noEmb = embeddings.slice([2, 0], [1, -1]);
-      const skipEmb = embeddings.slice([3, 0], [1, -1]);
-
-      const yesSim = tf.matMul(inputEmb, yesEmb, false, true).dataSync()[0];
-      const noSim = tf.matMul(inputEmb, noEmb, false, true).dataSync()[0];
-      const skipSim = tf.matMul(inputEmb, skipEmb, false, true).dataSync()[0];
-
+      const { input: rawInput, isYes, isNo, isSkip } = parseInput(input);
       const nextStep = () => {
         step++;
-        if (step < questions.length) setTimeout(() => addMessage(questions[step]), 100); // Faster: 100ms
+        if (step < questions.length) setTimeout(() => addMessage(questions[step]), 50);
       };
 
       // Overview
-      if (step === 0) clientData.client1.overview.firstName = input;
-      else if (step === 1) clientData.client1.overview.lastName = input;
-      else if (step === 2) clientData.client1.overview.preferredName = (noSim > 0.9 || input.toLowerCase().includes('no')) ? '' : input;
-      else if (step === 3) clientData.client1.overview.dob = input;
-      else if (step === 4) clientData.client1.overview.email = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
-      else if (step === 5) clientData.client1.overview.phone = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
-      else if (step === 6) clientData.client1.overview.gender = input;
-      else if (step === 7) clientData.client1.overview.relationshipStatus = input;
-      else if (step === 8) clientData.client1.overview.retired = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
-      else if (step === 9) clientData.client1.overview.retirementAge = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
-      else if (step === 10) clientData.client1.overview.reason = input;
+      if (step === 0) clientData.client1.overview.firstName = rawInput;
+      else if (step === 1) clientData.client1.overview.lastName = rawInput;
+      else if (step === 2) clientData.client1.overview.preferredName = isNo ? '' : rawInput;
+      else if (step === 3) clientData.client1.overview.dob = rawInput;
+      else if (step === 4) clientData.client1.overview.email = isSkip ? '' : rawInput;
+      else if (step === 5) clientData.client1.overview.phone = isSkip ? '' : rawInput;
+      else if (step === 6) clientData.client1.overview.gender = rawInput;
+      else if (step === 7) clientData.client1.overview.relationshipStatus = rawInput;
+      else if (step === 8) {
+        clientData.client1.overview.retired = isYes ? 'Yes' : 'No';
+        if (isYes) addMessage('Cool, when did you retire?');
+        else addMessage('Got it, when do you plan to retire? (Say "Skip" if unsure)');
+      }
+      else if (step === 9) clientData.client1.overview.retirementAge = isSkip ? '' : rawInput;
+      else if (step === 10) clientData.client1.overview.reason = rawInput;
       // Risk and Financial Priorities
       else if (step === 11) {
-        if (noSim > 0.9 || input.toLowerCase().includes('no')) clientData.client1.risk.comra = 'Not provided';
-        else if (!isNaN(input) && input >= 0 && input <= 100) clientData.client1.risk.comra = parseInt(input);
-        else { addMessage('Please give a score 0-100 or "No".'); return; }
+        if (isNo) clientData.client1.risk.comra = 'Not provided';
+        else if (!isNaN(rawInput) && rawInput >= 0 && rawInput <= 100) clientData.client1.risk.comra = parseInt(rawInput);
+        else { addMessage('Please give a score 0-100 or say "No".'); return; }
       }
       else if (step >= 12 && step <= 19) {
-        const rank = parseInt(input);
+        const rank = parseInt(rawInput);
         if (!isNaN(rank) && rank >= 1 && rank <= 8 && !clientData.client1.risk.priorities.includes(rank)) {
           clientData.client1.risk.priorities.push(rank);
         } else { addMessage('Need a unique number 1-8. Try again!'); return; }
       }
       // Assets and Liabilities
       else if (step === 20) {
-        if (skipSim > 0.9 || input.toLowerCase().includes('skip')) step = 24; // Jump to liabilities
-        else clientData.client1.assets.push({ name: input });
+        if (isSkip) step = 24;
+        else clientData.client1.assets.push({ name: rawInput });
       }
-      else if (step === 21) clientData.client1.assets[0].owner = input;
-      else if (step === 22) clientData.client1.assets[0].type = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
-      else if (step === 23) clientData.client1.assets[0].value = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 21) clientData.client1.assets[0].owner = rawInput;
+      else if (step === 22) clientData.client1.assets[0].type = isSkip ? '' : rawInput;
+      else if (step === 23) clientData.client1.assets[0].value = isSkip ? '' : rawInput;
       else if (step === 24) {
-        if (skipSim > 0.9 || input.toLowerCase().includes('skip')) step = 26; // Jump to Social Security
-        else clientData.client1.liabilities.push({ name: input });
+        if (isSkip) step = 26;
+        else clientData.client1.liabilities.push({ name: rawInput });
       }
-      else if (step === 25) clientData.client1.liabilities[0].balance = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 25) clientData.client1.liabilities[0].balance = isSkip ? '' : rawInput;
       // Social Security
-      else if (step === 26) clientData.client1.socialSecurity.receiving = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
-      else if (step === 27) clientData.client1.socialSecurity.benefit = (clientData.client1.socialSecurity.receiving === 'Yes' && !(skipSim > 0.9 || input.toLowerCase().includes('skip'))) ? input : '';
-      else if (step === 28) clientData.client1.socialSecurity.filingAge = (clientData.client1.socialSecurity.receiving === 'No' && !(skipSim > 0.9 || input.toLowerCase().includes('skip'))) ? input : '';
-      // Other Income Sources
-      else if (step === 29) {
-        if (skipSim > 0.9 || input.toLowerCase().includes('skip')) step = 31; // Jump to Retirement
-        else clientData.client1.otherIncome.push({ name: input });
+      else if (step === 26) {
+        clientData.client1.socialSecurity.receiving = isYes ? 'Yes' : 'No';
+        if (isYes) addMessage('What’s your monthly benefit? (e.g., $2000, say "Skip" if not sure)');
+        else addMessage('What age do you plan to file for benefits? (Say "Skip" if unsure)');
       }
-      else if (step === 30) clientData.client1.otherIncome[0].amount = (skipSim > 0.9 || input.toLowerCase().includes('skip')) ? '' : input;
+      else if (step === 27) {
+        if (clientData.client1.socialSecurity.receiving === 'Yes') clientData.client1.socialSecurity.benefit = isSkip ? '' : rawInput;
+        else clientData.client1.socialSecurity.filingAge = isSkip ? '' : rawInput;
+      }
+      // Other Income Sources
+      else if (step === 28) {
+        if (isSkip) step = 30;
+        else clientData.client1.otherIncome.push({ name: rawInput });
+      }
+      else if (step === 29) clientData.client1.otherIncome[0].amount = isSkip ? '' : rawInput;
       // Retirement Income Needs
-      else if (step === 31) clientData.client1.retirement.expenses = input;
-      else if (step === 32) clientData.client1.retirement.incomeGoal = input;
+      else if (step === 30) clientData.client1.retirement.expenses = rawInput;
+      else if (step === 31) clientData.client1.retirement.incomeGoal = rawInput;
       // Insurance
-      else if (step === 33) clientData.client1.insurance.life = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
-      else if (step === 34) clientData.client1.insurance.lifeBenefit = (clientData.client1.insurance.life === 'Yes' && !(skipSim > 0.9 || input.toLowerCase().includes('skip'))) ? input : '';
-      else if (step === 35) clientData.client1.insurance.ltc = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
+      else if (step === 32) {
+        clientData.client1.insurance.life = isYes ? 'Yes' : 'No';
+        if (isYes) addMessage('What’s the death benefit? (e.g., $100000, say "Skip" if unsure)');
+      }
+      else if (step === 33) clientData.client1.insurance.lifeBenefit = isSkip ? '' : rawInput;
+      else if (step === 34) clientData.client1.insurance.ltc = isYes ? 'Yes' : 'No';
       // Estate Planning/Miscellaneous
-      else if (step === 36) clientData.client1.estate.plan = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
-      else if (step === 37) clientData.client1.estate.will = (yesSim > 0.9 || input.toLowerCase().includes('yes')) ? 'Yes' : 'No';
-      else if (step === 38) clientData.client1.estate.questionSource = input;
+      else if (step === 35) clientData.client1.estate.plan = isYes ? 'Yes' : 'No';
+      else if (step === 36) clientData.client1.estate.will = isYes ? 'Yes' : 'No';
+      else if (step === 37) clientData.client1.estate.questionSource = rawInput;
       // Summary
-      else if (step === 39) {
-        if (yesSim > 0.9 || input.toLowerCase().includes('yes')) {
+      else if (step === 38) {
+        if (isYes) {
           const summary = `Here’s your Fact and Feeling Finder summary:\n` +
-            `Overview: ${JSON.stringify(clientData.client1.overview, null, 2)}\n` +
-            `Risk: COMRA - ${clientData.client1.risk.comra}, Priorities - ${clientData.client1.risk.priorities.join(', ')}\n` +
-            `Assets: ${JSON.stringify(clientData.client1.assets, null, 2)}\n` +
-            `Liabilities: ${JSON.stringify(clientData.client1.liabilities, null, 2)}\n` +
-            `Social Security: ${JSON.stringify(clientData.client1.socialSecurity, null, 2)}\n` +
-            `Other Income: ${JSON.stringify(clientData.client1.otherIncome, null, 2)}\n` +
-            `Retirement Needs: ${JSON.stringify(clientData.client1.retirement, null, 2)}\n` +
-            `Insurance: ${JSON.stringify(clientData.client1.insurance, null, 2)}\n` +
-            `Estate: ${JSON.stringify(clientData.client1.estate, null, 2)}`;
+            `Name: ${clientData.client1.overview.firstName} ${clientData.client1.overview.lastName}\n` +
+            `DOB: ${clientData.client1.overview.dob || 'Not provided'}\n` +
+            `Email: ${clientData.client1.overview.email || 'Not provided'}\n` +
+            `Phone: ${clientData.client1.overview.phone || 'Not provided'}\n` +
+            `Gender: ${clientData.client1.overview.gender || 'Not provided'}\n` +
+            `Relationship: ${clientData.client1.overview.relationshipStatus || 'Not provided'}\n` +
+            `Retired: ${clientData.client1.overview.retired}, Age: ${clientData.client1.overview.retirementAge || 'N/A'}\n` +
+            `Reason: ${clientData.client1.overview.reason || 'Not provided'}\n` +
+            `Risk Score: ${clientData.client1.risk.comra || 'Not provided'}, Priorities: ${clientData.client1.risk.priorities.join(', ')}\n` +
+            `Assets: ${clientData.client1.assets.length ? clientData.client1.assets.map(a => `${a.name} (${a.value})`).join(', ') : 'None'}\n` +
+            `Liabilities: ${clientData.client1.liabilities.length ? clientData.client1.liabilities.map(l => `${l.name} (${l.balance})`).join(', ') : 'None'}\n` +
+            `Social Security: ${clientData.client1.socialSecurity.receiving}, ${clientData.client1.socialSecurity.benefit || clientData.client1.socialSecurity.filingAge || 'N/A'}\n` +
+            `Other Income: ${clientData.client1.otherIncome.length ? clientData.client1.otherIncome.map(i => `${i.name} (${i.amount})`).join(', ') : 'None'}\n` +
+            `Expenses: ${clientData.client1.retirement.expenses || 'Not provided'}\n` +
+            `Income Goal: ${clientData.client1.retirement.incomeGoal || 'Not provided'}\n` +
+            `Life Insurance: ${clientData.client1.insurance.life}, Benefit: ${clientData.client1.insurance.lifeBenefit || 'N/A'}\n` +
+            `Long-Term Care: ${clientData.client1.insurance.ltc}\n` +
+            `Estate Plan: ${clientData.client1.estate.plan}, Will: ${clientData.client1.estate.will}\n` +
+            `Financial Questions: ${clientData.client1.estate.questionSource || 'Not provided'}`;
           addMessage(summary);
           addMessage('All done! Thanks for completing this with me!');
           step++;
           return;
-        } else if (noSim > 0.9 || input.toLowerCase().includes('no')) {
-          addMessage('No problem, refresh to start over if you’d like.');
+        } else if (isNo) {
+          addMessage('No worries, refresh to start over if you want.');
           step++;
           return;
         } else {
-          addMessage('Please say "Yes" or "No" to review.');
+          addMessage('Just say "Yes" or "No" to review.');
           return;
         }
       }
@@ -343,7 +344,7 @@
         processInput(userInput);
         document.getElementById('textInput').value = '';
       } else {
-        addMessage('Type something to keep us going!');
+        addMessage('Give me something to work with!');
       }
     });
 
